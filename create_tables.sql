@@ -4,9 +4,13 @@
 -- =============================================
 
 -- ==============================
+-- TABLAS
+-- ==============================
+
+-- ==============================
 -- 1. CUSTOMER
 -- ==============================
-CREATE TABLE CUSTOMER (
+CREATE TABLE IF NOT EXISTS CUSTOMER (
     CUSTOMER_ID     BIGSERIAL PRIMARY KEY,
     FIRST_NAME      VARCHAR(50) NOT NULL,
     LAST_NAME       VARCHAR(50) NOT NULL,
@@ -30,13 +34,14 @@ CREATE TABLE CUSTOMER (
 );
 
 -- Indices
-CREATE INDEX IDX_CUSTOMER_BIRTH_DATE ON CUSTOMER (BIRTH_DATE); -- Para usar en la query de cumpleaños
+CREATE INDEX IDX_CUSTOMER_BIRTH_DATE_MD ON CUSTOMER (EXTRACT(MONTH FROM BIRTH_DATE), EXTRACT(DAY FROM BIRTH_DATE));
+-- Para usar en la query de cumpleaños
 CREATE INDEX IDX_CUSTOMER_NAME ON CUSTOMER (FIRST_NAME, LAST_NAME); -- Para búsquedas por nombre
 
 -- ==============================
 -- 2. ADDRESS
 -- ==============================
-CREATE TABLE ADDRESS (
+CREATE TABLE IF NOT EXISTS ADDRESS (
     ADDRESS_ID      BIGSERIAL PRIMARY KEY,
     CUSTOMER_ID     BIGINT NOT NULL,
     STREET          VARCHAR(30) NOT NULL,
@@ -68,7 +73,7 @@ CREATE UNIQUE INDEX UQ_CUSTOMER_PRIMARY_ADDRESS
 -- ==============================
 -- 3. PHONE
 -- ==============================
-CREATE TABLE PHONE (
+CREATE TABLE IF NOT EXISTS PHONE (
     PHONE_ID        BIGSERIAL PRIMARY KEY,
     CUSTOMER_ID     BIGINT NOT NULL,
     PHONE_NUMBER    VARCHAR(20) NOT NULL,
@@ -98,7 +103,7 @@ CREATE UNIQUE INDEX UQ_CUSTOMER_PRIMARY_PHONE
 -- ==============================
 -- 4. CATEGORY
 -- ==============================
-CREATE TABLE CATEGORY (
+CREATE TABLE IF NOT EXISTS CATEGORY (
     CATEGORY_ID     BIGSERIAL PRIMARY KEY,
     PARENT_ID       BIGINT NULL,
     -- PARENT_ID: funciona como una referencia recursiva a la misma tabla
@@ -133,7 +138,7 @@ CREATE INDEX IDX_CATEGORY_LEVEL ON CATEGORY (LEVEL);
 -- ==============================
 -- 5. ITEM
 -- ==============================
-CREATE TABLE ITEM (
+CREATE TABLE IF NOT EXISTS ITEM (
     ITEM_ID         BIGSERIAL PRIMARY KEY,
     SELLER_ID       BIGINT NOT NULL,
     CATEGORY_ID     BIGINT NOT NULL,
@@ -167,7 +172,7 @@ CREATE INDEX IDX_ITEM_PUBLISHED ON ITEM (PUBLISHED_AT);
 -- ==============================
 -- 6. ORDER_TABLE (ORDER es palabra reservada, asi que le agrego un diferenciador)
 -- ==============================
-CREATE TABLE ORDER_TABLE (
+CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     ORDER_ID        BIGSERIAL PRIMARY KEY,
     ORDER_NUMBER    VARCHAR(20) NOT NULL, -- Para que el comprador identifique la orden
     BUYER_ID        BIGINT NOT NULL,
@@ -198,14 +203,126 @@ CREATE TABLE ORDER_TABLE (
     CONSTRAINT CK_ORDER_QTY CHECK (QUANTITY > 0),
     CONSTRAINT CK_ORDER_PRICE CHECK (UNIT_PRICE >= 0),
     CONSTRAINT CK_ORDER_STATUS CHECK
-        (STATUS IN ('CREATED','PENDING','PROCESSING','SHIPPED','DELIVERED','RETURNED','CANCELLED')),
+        (STATUS IN
+         ('CREATED','PENDING','PROCESSING','SHIPPED','DELIVERED','RETURNED','CANCELLED','COMPLETED')),
     CONSTRAINT CK_PAYMENT_STATUS CHECK
-        (PAYMENT_STATUS IN ('PENDING','PROCESSING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED')),
+        (PAYMENT_STATUS IN ('PENDING','PROCESSING','PAID','FAILED','REFUNDED')),
     CONSTRAINT CK_SHIPPING_STATUS CHECK
-        (SHIPPING_STATUS IN ('PENDING','PREPARING','SHIPPED','IN_TRANSIT','DELIVERED','RETURNED'))
+        (SHIPPING_STATUS IN ('PENDING','PREPARING','IN_TRANSIT','DELIVERED','CANCELLED','RETURNED')),
+    CONSTRAINT CK_PAYMENT_METHOD CHECK
+        (PAYMENT_METHOD IN ('CREDIT_CARD','DEBIT_CARD','TRANSFER'))
 );
 
 CREATE INDEX IDX_ORDER_BUYER ON ORDER_TABLE (BUYER_ID);
 CREATE INDEX IDX_ORDER_SELLER ON ORDER_TABLE (SELLER_ID);
 CREATE INDEX IDX_ORDER_ITEM ON ORDER_TABLE (ITEM_ID);
 CREATE INDEX IDX_ORDER_STATUS ON ORDER_TABLE (STATUS);
+CREATE INDEX IDX_ORDER_CREATED_YEAR_MONTH ON ORDER_TABLE
+    (EXTRACT(YEAR FROM CREATED_AT), EXTRACT(MONTH FROM CREATED_AT));
+-- Para filtrar las órdenes realizadas por año y mes (usada para calcular ventas por año y mes)
+CREATE INDEX IDX_ORDER_SELLER_STATUS ON ORDER_TABLE (SELLER_ID, STATUS);
+-- Para filtar por órdenes realizadas por un vendedor en un determinado estado (usada para calcular ventas terminadas)
+CREATE INDEX IDX_ORDER_CATEGORY_DATE_SELLER ON ORDER_TABLE
+    (EXTRACT(YEAR FROM CREATED_AT), EXTRACT(MONTH FROM CREATED_AT), SELLER_ID)
+    INCLUDE (FINAL_PRICE, QUANTITY)
+    WHERE STATUS = 'COMPLETED' AND PAYMENT_STATUS = 'PAID';
+-- Indice para filtrar ventas por categoría y fecha
+
+-- ==============================
+-- Funciones y triggers
+-- ==============================
+
+-- ==========================================
+-- Función para actualizar UPDATED_AT automáticamente cuando se modifica cualquier campo de un registro
+-- ==========================================
+CREATE OR REPLACE FUNCTION set_updated_at()
+    RETURNS TRIGGER AS $$
+BEGIN
+    NEW.UPDATED_AT = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ==========================================
+-- Función para soft delete: actualizar DELETED_AT y UPDATED_AT
+-- Cuando se elimina un registro también se actualiza el UPDATED_AT
+-- ==========================================
+CREATE OR REPLACE FUNCTION set_deleted_at()
+    RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.DELETED_AT IS DISTINCT FROM OLD.DELETED_AT THEN
+        NEW.UPDATED_AT = CURRENT_TIMESTAMP;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ==========================================
+-- Triggers para UPDATED_AT
+-- ==========================================
+-- CUSTOMER
+CREATE TRIGGER trg_customer_updated
+    BEFORE UPDATE ON CUSTOMER
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- ADDRESS
+CREATE TRIGGER trg_address_updated
+    BEFORE UPDATE ON ADDRESS
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- PHONE
+CREATE TRIGGER trg_phone_updated
+    BEFORE UPDATE ON PHONE
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- CATEGORY
+CREATE TRIGGER trg_category_updated
+    BEFORE UPDATE ON CATEGORY
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- ITEM
+CREATE TRIGGER trg_item_updated
+    BEFORE UPDATE ON ITEM
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- ORDER_TABLE
+CREATE TRIGGER trg_order_updated
+    BEFORE UPDATE ON ORDER_TABLE
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- ==========================================
+-- Triggers para DELETED_AT (y UPDATED_AT)
+-- ==========================================
+-- CUSTOMER
+CREATE TRIGGER trg_customer_deleted
+    BEFORE UPDATE ON CUSTOMER
+    FOR EACH ROW
+    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
+EXECUTE FUNCTION set_deleted_at();
+
+-- ADDRESS
+CREATE TRIGGER trg_address_deleted
+    BEFORE UPDATE ON ADDRESS
+    FOR EACH ROW
+    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
+EXECUTE FUNCTION set_deleted_at();
+
+-- PHONE
+CREATE TRIGGER trg_phone_deleted
+    BEFORE UPDATE ON PHONE
+    FOR EACH ROW
+    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
+EXECUTE FUNCTION set_deleted_at();
+
+-- ITEM
+CREATE TRIGGER trg_item_deleted
+    BEFORE UPDATE ON ITEM
+    FOR EACH ROW
+    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
+EXECUTE FUNCTION set_deleted_at();
