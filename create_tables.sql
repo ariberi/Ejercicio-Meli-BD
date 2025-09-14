@@ -1,16 +1,17 @@
 -- =============================================
 -- MARKETPLACE MELI - DDL
+-- Ariel Berinstein
 -- =============================================
 
 -- ==============================
 -- 1. CUSTOMER
 -- ==============================
 CREATE TABLE CUSTOMER (
-    CUSTOMER_ID     BIGINT NOT NULL,
+    CUSTOMER_ID     BIGSERIAL PRIMARY KEY,
     FIRST_NAME      VARCHAR(50) NOT NULL,
     LAST_NAME       VARCHAR(50) NOT NULL,
     DNI             VARCHAR(10) NOT NULL,
-    GENDER          VARCHAR(10) CHECK (GENDER IN ('M', 'F', 'OTHER')),
+    GENDER          VARCHAR(10) NOT NULL,
     EMAIL           VARCHAR(254) NOT NULL, -- 254 caracteres según el estándar RFC 5322
     BIRTH_DATE      DATE NOT NULL,
     CREATED_AT      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -21,54 +22,54 @@ CREATE TABLE CUSTOMER (
     DELETED_AT      TIMESTAMP NULL, -- Soft delete
 
     -- Restricciones
-    CONSTRAINT PK_CUSTOMER PRIMARY KEY (CUSTOMER_ID),
     CONSTRAINT UQ_CUSTOMER_EMAIL UNIQUE (EMAIL),
     CONSTRAINT UQ_CUSTOMER_DNI UNIQUE (DNI),
     CONSTRAINT CK_CUSTOMER_DNI CHECK (DNI ~ '^[0-9]{7,8}$'),
-    CONSTRAINT CK_CUSTOMER_EMAIL CHECK (EMAIL ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+    CONSTRAINT CK_CUSTOMER_EMAIL CHECK (EMAIL ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+    CONSTRAINT CK_CUSTOMER_GENDER CHECK (GENDER IN ('M','F', 'OTHER'))
 );
 
+-- Indices
 CREATE INDEX IDX_CUSTOMER_BIRTH_DATE ON CUSTOMER (BIRTH_DATE); -- Para usar en la query de cumpleaños
-CREATE PARTIAL INDEX IDX_CUSTOMER_ACTIVE ON CUSTOMER (CUSTOMER_ID) WHERE DELETED_AT IS NULL;
--- faltaría índices para nombre y apellido?
+CREATE INDEX IDX_CUSTOMER_NAME ON CUSTOMER (FIRST_NAME, LAST_NAME); -- Para búsquedas por nombre
 
 -- ==============================
 -- 2. ADDRESS
 -- ==============================
 CREATE TABLE ADDRESS (
-    ADDRESS_ID      BIGINT NOT NULL,
+    ADDRESS_ID      BIGSERIAL PRIMARY KEY,
     CUSTOMER_ID     BIGINT NOT NULL,
     STREET          VARCHAR(30) NOT NULL,
-    NUMBER          VARCHAR(20) NOT NULL, /* podria ser nulo? */
+    NUMBER          VARCHAR(20) NOT NULL,
     APARTMENT       VARCHAR(20),
     CITY            VARCHAR(30) NOT NULL,
     STATE           VARCHAR(50),
     COUNTRY         VARCHAR(30) NOT NULL,
     ZIP_CODE        VARCHAR(10),
-    IS_PRIMARY      BOOLEAN DEFAULT FALSE, /* para saber si es la direccion principal actual, puede variar */
+    IS_PRIMARY      BOOLEAN DEFAULT FALSE,
     CREATED_AT      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UPDATED_AT      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UPDATED_BY      VARCHAR(50),
     DELETED_AT      TIMESTAMP NULL,
 
     -- Restricciones
-    CONSTRAINT PK_ADDRESS PRIMARY KEY (ADDRESS_ID), /* no pongo PK compuesta porque 2 personas pueden tener la misma direc */
     CONSTRAINT FK_ADDRESS_CUSTOMER FOREIGN KEY (CUSTOMER_ID)
         REFERENCES CUSTOMER(CUSTOMER_ID) ON DELETE CASCADE,
     -- Si se elimina un registro de la tabla principal customer, también se elimina acá
     CONSTRAINT CK_ADDRESS_ZIP CHECK (ZIP_CODE ~ '^[0-9]{4,10}$')
 );
 
--- Creo un índice para que un customer no pueda tener más de una dirreción principal
+-- Indices
 CREATE UNIQUE INDEX UQ_CUSTOMER_PRIMARY_ADDRESS
     ON ADDRESS (CUSTOMER_ID)
     WHERE IS_PRIMARY = TRUE AND DELETED_AT IS NULL;
+-- Creo un índice para que un customer no pueda tener más de una dirección principal
 
 -- ==============================
 -- 3. PHONE
 -- ==============================
 CREATE TABLE PHONE (
-    PHONE_ID        BIGINT NOT NULL,
+    PHONE_ID        BIGSERIAL PRIMARY KEY,
     CUSTOMER_ID     BIGINT NOT NULL,
     PHONE_NUMBER    VARCHAR(20) NOT NULL,
     COUNTRY_CODE    VARCHAR(5) NOT NULL,
@@ -81,7 +82,6 @@ CREATE TABLE PHONE (
     DELETED_AT      TIMESTAMP NULL,
 
     -- Restricciones
-    CONSTRAINT PK_PHONE PRIMARY KEY (PHONE_ID),
     CONSTRAINT UQ_PHONE_CUSTOMER UNIQUE (CUSTOMER_ID, PHONE_NUMBER),
     CONSTRAINT CK_PHONE_TYPE CHECK (TYPE IN ('MOBILE','HOME','WORK')),
     CONSTRAINT CK_PHONE_NUMBER CHECK (PHONE_NUMBER ~ '^[0-9]{8,15}$'),
@@ -89,23 +89,23 @@ CREATE TABLE PHONE (
         REFERENCES CUSTOMER(CUSTOMER_ID) ON DELETE CASCADE
 );
 
--- Creo un índice para que un customer no pueda tener más de un teléfono principal
+-- Indices
 CREATE UNIQUE INDEX UQ_CUSTOMER_PRIMARY_PHONE
     ON PHONE (CUSTOMER_ID)
     WHERE IS_PRIMARY = TRUE AND DELETED_AT IS NULL;
-
+-- Creo un índice para que un customer no pueda tener más de un teléfono principal
 
 -- ==============================
 -- 4. CATEGORY
 -- ==============================
 CREATE TABLE CATEGORY (
-    CATEGORY_ID     BIGINT NOT NULL,
+    CATEGORY_ID     BIGSERIAL PRIMARY KEY,
     PARENT_ID       BIGINT NULL,
     -- PARENT_ID: funciona como una referencia recursiva a la misma tabla
     -- Se utiliza para jerarquías de categorías, por ejemplo:
     -- Tecnología > Celulares y Teléfonos > Celulares y Smartphones
     -- Si el valor es null es porque es una categoría raíz, y no hay otra por encima
-    LEVEL           INT DEFAULT 0,
+    LEVEL           INTEGER DEFAULT 0,
     -- LEVEL: funciona como el nivel en la jerarquía
     -- Tecnología (LEVEL 0) > Celulares y Teléfonos (LEVEL 1) > Celulares y Smartphones (LEVEL 2)
     NAME            VARCHAR(60) NOT NULL,
@@ -119,30 +119,29 @@ CREATE TABLE CATEGORY (
     UPDATED_BY      VARCHAR(50),
 
     -- Restricciones
-    CONSTRAINT PK_CATEGORY PRIMARY KEY (CATEGORY_ID),
     CONSTRAINT FK_CATEGORY_PARENT FOREIGN KEY (PARENT_ID)
         REFERENCES CATEGORY(CATEGORY_ID),
     CONSTRAINT CK_CATEGORY_LEVEL CHECK (LEVEL >= 0),
-    -- unique name
-    CONSTRAINT UQ_CATEGORY_NAME UNIQUE (NAME),
+    CONSTRAINT UQ_CATEGORY_NAME UNIQUE (NAME) -- No puede haber dos categorías con el mismo nombre
 );
 
 -- Indices
 CREATE INDEX IDX_CATEGORY_NAME ON CATEGORY (NAME);
-
+CREATE INDEX IDX_CATEGORY_PARENT ON CATEGORY (PARENT_ID);
+CREATE INDEX IDX_CATEGORY_LEVEL ON CATEGORY (LEVEL);
 
 -- ==============================
 -- 5. ITEM
 -- ==============================
 CREATE TABLE ITEM (
-    ITEM_ID         BIGINT NOT NULL,
+    ITEM_ID         BIGSERIAL PRIMARY KEY,
     SELLER_ID       BIGINT NOT NULL,
     CATEGORY_ID     BIGINT NOT NULL,
     TITLE           VARCHAR(255) NOT NULL, -- Unique?
     DESCRIPTION     TEXT,
     PRICE           DECIMAL(12,2) NOT NULL, -- Precio original de venta
     CURRENCY        VARCHAR(3) NOT NULL, -- Siguiendo el estándar ISO 4217, que define códigos de 3 letras para monedas
-    STOCK_QUANTITY  INT DEFAULT 0,
+    STOCK_QUANTITY  INTEGER DEFAULT 0,
     STATUS          VARCHAR(20) DEFAULT 'DRAFT',
     PUBLISHED_AT    DATE, -- Cuando se publica el item al marketplace
     END_DATE        DATE,
@@ -152,41 +151,35 @@ CREATE TABLE ITEM (
     DELETED_AT      TIMESTAMP NULL,
 
     -- Restricciones
-    CONSTRAINT PK_ITEM PRIMARY KEY (ITEM_ID),
     CONSTRAINT FK_ITEM_SELLER FOREIGN KEY (SELLER_ID) REFERENCES CUSTOMER(CUSTOMER_ID),
     CONSTRAINT FK_ITEM_CATEGORY FOREIGN KEY (CATEGORY_ID) REFERENCES CATEGORY(CATEGORY_ID),
     CONSTRAINT CK_ITEM_PRICE CHECK (PRICE >= 0),
     CONSTRAINT CK_ITEM_STOCK CHECK (STOCK_QUANTITY >= 0),
     CONSTRAINT CK_ITEM_STATUS CHECK (STATUS IN ('DRAFT','ACTIVE','INACTIVE','SOLD','DELETED')),
-    CONSTRAINT CK_ITEM_DATES CHECK (END_DATE IS NULL OR END_DATE > PUBLISHED_AT),
+    CONSTRAINT CK_ITEM_DATES CHECK (END_DATE IS NULL OR END_DATE > PUBLISHED_AT)
 );
 
--- Indices
 CREATE INDEX IDX_ITEM_SELLER ON ITEM (SELLER_ID);
 CREATE INDEX IDX_ITEM_CATEGORY ON ITEM (CATEGORY_ID);
-
+CREATE INDEX IDX_ITEM_STATUS ON ITEM (STATUS);
+CREATE INDEX IDX_ITEM_PUBLISHED ON ITEM (PUBLISHED_AT);
 
 -- ==============================
--- 6. ORDER
+-- 6. ORDER_TABLE (ORDER es palabra reservada, asi que le agrego un diferenciador)
 -- ==============================
-CREATE TABLE ORDER (
-    ORDER_ID        BIGINT NOT NULL,
+CREATE TABLE ORDER_TABLE (
+    ORDER_ID        BIGSERIAL PRIMARY KEY,
     ORDER_NUMBER    VARCHAR(20) NOT NULL, -- Para que el comprador identifique la orden
     BUYER_ID        BIGINT NOT NULL,
     SELLER_ID       BIGINT NOT NULL,
-    -- SELLER_ID: Si bien se puede asociar el vendedor del el ITEM_ID,
-    -- se puede desnormalizar para poder realizar consultas más rápidas,
-    -- mejorando performance y también preservar historial de compras
     ITEM_ID         BIGINT NOT NULL,
-    QUANTITY        INT NOT NULL,
+    QUANTITY        INTEGER NOT NULL,
     UNIT_PRICE      DECIMAL(12,2) NOT NULL,
-    TOTAL_AMOUNT    DECIMAL(14,2) NOT NULL GENERATED ALWAYS AS (QUANTITY * UNIT_PRICE) STORED,
+    TOTAL_AMOUNT    DECIMAL(14,2) GENERATED ALWAYS AS (QUANTITY * UNIT_PRICE) STORED,
     DISCOUNT        DECIMAL(12,2) DEFAULT 0,
     TAXES           DECIMAL(12,2) DEFAULT 0,
     SHIPPING_COST   DECIMAL(12,2) DEFAULT 0,
-    FINAL_PRICE     DECIMAL(14,2) GENERATED ALWAYS AS (
-        TOTAL_AMOUNT - DISCOUNT + TAXES + SHIPPING_COST -- Usar TOTAL_AMOUNT o recalcularlo?
-    ) STORED,
+    FINAL_PRICE     DECIMAL(14,2) GENERATED ALWAYS AS ((QUANTITY * UNIT_PRICE) + SHIPPING_COST + TAXES - DISCOUNT) STORED,
     CURRENCY        VARCHAR(3) NOT NULL,
     STATUS          VARCHAR(20) DEFAULT 'CREATED',
     PAYMENT_STATUS  VARCHAR(20) DEFAULT 'PENDING',
@@ -198,7 +191,6 @@ CREATE TABLE ORDER (
     UPDATED_BY      VARCHAR(50),
 
     -- Restricciones
-    CONSTRAINT PK_ORDER PRIMARY KEY (ORDER_ID),
     CONSTRAINT UQ_ORDER_NUMBER UNIQUE (ORDER_NUMBER),
     CONSTRAINT FK_ORDER_BUYER FOREIGN KEY (BUYER_ID) REFERENCES CUSTOMER(CUSTOMER_ID),
     CONSTRAINT FK_ORDER_SELLER FOREIGN KEY (SELLER_ID) REFERENCES CUSTOMER(CUSTOMER_ID),
@@ -213,42 +205,7 @@ CREATE TABLE ORDER (
         (SHIPPING_STATUS IN ('PENDING','PREPARING','SHIPPED','IN_TRANSIT','DELIVERED','RETURNED'))
 );
 
--- Indices
-CREATE INDEX IDX_ORDER_SELLER ON ORDER (SELLER_ID);
-CREATE INDEX IDX_ORDER_ITEM ON ORDER (ITEM_ID);
-CREATE INDEX IDX_ORDER_STATUS ON ORDER (STATUS);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+CREATE INDEX IDX_ORDER_BUYER ON ORDER_TABLE (BUYER_ID);
+CREATE INDEX IDX_ORDER_SELLER ON ORDER_TABLE (SELLER_ID);
+CREATE INDEX IDX_ORDER_ITEM ON ORDER_TABLE (ITEM_ID);
+CREATE INDEX IDX_ORDER_STATUS ON ORDER_TABLE (STATUS);
