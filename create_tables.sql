@@ -4,6 +4,10 @@
 -- =============================================
 
 -- ==============================
+-- TABLAS
+-- ==============================
+
+-- ==============================
 -- 1. CUSTOMER
 -- ==============================
 CREATE TABLE IF NOT EXISTS CUSTOMER (
@@ -209,3 +213,103 @@ CREATE INDEX IDX_ORDER_BUYER ON ORDER_TABLE (BUYER_ID);
 CREATE INDEX IDX_ORDER_SELLER ON ORDER_TABLE (SELLER_ID);
 CREATE INDEX IDX_ORDER_ITEM ON ORDER_TABLE (ITEM_ID);
 CREATE INDEX IDX_ORDER_STATUS ON ORDER_TABLE (STATUS);
+
+
+-- ==============================
+-- Funciones y triggers
+-- ==============================
+
+-- ==========================================
+-- Función para actualizar UPDATED_AT automáticamente
+-- ==========================================
+CREATE OR REPLACE FUNCTION set_updated_at()
+    RETURNS TRIGGER AS $$
+BEGIN
+    NEW.UPDATED_AT = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ==========================================
+-- Función para soft delete: actualizar DELETED_AT y UPDATED_AT
+-- ==========================================
+CREATE OR REPLACE FUNCTION set_deleted_at()
+    RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.DELETED_AT IS DISTINCT FROM OLD.DELETED_AT THEN
+        NEW.UPDATED_AT = CURRENT_TIMESTAMP;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ==========================================
+-- Triggers para UPDATED_AT
+-- ==========================================
+-- CUSTOMER
+CREATE TRIGGER trg_customer_updated
+    BEFORE UPDATE ON CUSTOMER
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- ADDRESS
+CREATE TRIGGER trg_address_updated
+    BEFORE UPDATE ON ADDRESS
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- PHONE
+CREATE TRIGGER trg_phone_updated
+    BEFORE UPDATE ON PHONE
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- CATEGORY
+CREATE TRIGGER trg_category_updated
+    BEFORE UPDATE ON CATEGORY
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- ITEM
+CREATE TRIGGER trg_item_updated
+    BEFORE UPDATE ON ITEM
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- ORDER_TABLE
+CREATE TRIGGER trg_order_updated
+    BEFORE UPDATE ON ORDER_TABLE
+    FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+-- ==========================================
+-- Triggers para DELETED_AT (opcional)
+-- ==========================================
+-- Se puede usar el mismo trigger si se quiere actualizar UPDATED_AT al hacer soft delete
+-- CUSTOMER
+CREATE TRIGGER trg_customer_deleted
+    BEFORE UPDATE ON CUSTOMER
+    FOR EACH ROW
+    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
+EXECUTE FUNCTION set_deleted_at();
+
+-- ADDRESS
+CREATE TRIGGER trg_address_deleted
+    BEFORE UPDATE ON ADDRESS
+    FOR EACH ROW
+    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
+EXECUTE FUNCTION set_deleted_at();
+
+-- PHONE
+CREATE TRIGGER trg_phone_deleted
+    BEFORE UPDATE ON PHONE
+    FOR EACH ROW
+    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
+EXECUTE FUNCTION set_deleted_at();
+
+-- ITEM
+CREATE TRIGGER trg_item_deleted
+    BEFORE UPDATE ON ITEM
+    FOR EACH ROW
+    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
+EXECUTE FUNCTION set_deleted_at();
