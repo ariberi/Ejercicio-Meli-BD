@@ -6,7 +6,7 @@
 -- ==============================
 -- 1. CUSTOMER
 -- ==============================
-CREATE TABLE CUSTOMER (
+CREATE TABLE IF NOT EXISTS CUSTOMER (
     CUSTOMER_ID     BIGSERIAL PRIMARY KEY,
     FIRST_NAME      VARCHAR(50) NOT NULL,
     LAST_NAME       VARCHAR(50) NOT NULL,
@@ -36,7 +36,7 @@ CREATE INDEX IDX_CUSTOMER_NAME ON CUSTOMER (FIRST_NAME, LAST_NAME); -- Para bús
 -- ==============================
 -- 2. ADDRESS
 -- ==============================
-CREATE TABLE ADDRESS (
+CREATE TABLE IF NOT EXISTS ADDRESS (
     ADDRESS_ID      BIGSERIAL PRIMARY KEY,
     CUSTOMER_ID     BIGINT NOT NULL,
     STREET          VARCHAR(30) NOT NULL,
@@ -68,7 +68,7 @@ CREATE UNIQUE INDEX UQ_CUSTOMER_PRIMARY_ADDRESS
 -- ==============================
 -- 3. PHONE
 -- ==============================
-CREATE TABLE PHONE (
+CREATE TABLE IF NOT EXISTS PHONE (
     PHONE_ID        BIGSERIAL PRIMARY KEY,
     CUSTOMER_ID     BIGINT NOT NULL,
     PHONE_NUMBER    VARCHAR(20) NOT NULL,
@@ -98,7 +98,7 @@ CREATE UNIQUE INDEX UQ_CUSTOMER_PRIMARY_PHONE
 -- ==============================
 -- 4. CATEGORY
 -- ==============================
-CREATE TABLE CATEGORY (
+CREATE TABLE IF NOT EXISTS CATEGORY (
     CATEGORY_ID     BIGSERIAL PRIMARY KEY,
     PARENT_ID       BIGINT NULL,
     -- PARENT_ID: funciona como una referencia recursiva a la misma tabla
@@ -133,7 +133,7 @@ CREATE INDEX IDX_CATEGORY_LEVEL ON CATEGORY (LEVEL);
 -- ==============================
 -- 5. ITEM
 -- ==============================
-CREATE TABLE ITEM (
+CREATE TABLE IF NOT EXISTS ITEM (
     ITEM_ID         BIGSERIAL PRIMARY KEY,
     SELLER_ID       BIGINT NOT NULL,
     CATEGORY_ID     BIGINT NOT NULL,
@@ -167,7 +167,7 @@ CREATE INDEX IDX_ITEM_PUBLISHED ON ITEM (PUBLISHED_AT);
 -- ==============================
 -- 6. ORDER_TABLE (ORDER es palabra reservada, asi que le agrego un diferenciador)
 -- ==============================
-CREATE TABLE ORDER_TABLE (
+CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     ORDER_ID        BIGSERIAL PRIMARY KEY,
     ORDER_NUMBER    VARCHAR(20) NOT NULL, -- Para que el comprador identifique la orden
     BUYER_ID        BIGINT NOT NULL,
