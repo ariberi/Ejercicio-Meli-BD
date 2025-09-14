@@ -1,15 +1,15 @@
--- =============================================
+-- ==============================================================
 -- MARKETPLACE MELI - DDL
 -- Ariel Berinstein
--- =============================================
+-- ==============================================================
 
--- ==============================
+-- ==============================================================
 -- TABLAS
--- ==============================
+-- ==============================================================
 
--- ==============================
+-- ==============================================================
 -- 1. CUSTOMER
--- ==============================
+-- ==============================================================
 CREATE TABLE IF NOT EXISTS CUSTOMER (
     CUSTOMER_ID     BIGSERIAL PRIMARY KEY,
     FIRST_NAME      VARCHAR(50) NOT NULL,
@@ -38,9 +38,9 @@ CREATE INDEX IDX_CUSTOMER_BIRTH_DATE_MD ON CUSTOMER (EXTRACT(MONTH FROM BIRTH_DA
 -- Para usar en la query de cumpleaños
 CREATE INDEX IDX_CUSTOMER_NAME ON CUSTOMER (FIRST_NAME, LAST_NAME); -- Para búsquedas por nombre
 
--- ==============================
+-- ==============================================================
 -- 2. ADDRESS
--- ==============================
+-- ==============================================================
 CREATE TABLE IF NOT EXISTS ADDRESS (
     ADDRESS_ID      BIGSERIAL PRIMARY KEY,
     CUSTOMER_ID     BIGINT NOT NULL,
@@ -70,9 +70,9 @@ CREATE UNIQUE INDEX UQ_CUSTOMER_PRIMARY_ADDRESS
     WHERE IS_PRIMARY = TRUE AND DELETED_AT IS NULL;
 -- Creo un índice para que un customer no pueda tener más de una dirección principal
 
--- ==============================
+-- ==============================================================
 -- 3. PHONE
--- ==============================
+-- ==============================================================
 CREATE TABLE IF NOT EXISTS PHONE (
     PHONE_ID        BIGSERIAL PRIMARY KEY,
     CUSTOMER_ID     BIGINT NOT NULL,
@@ -100,9 +100,9 @@ CREATE UNIQUE INDEX UQ_CUSTOMER_PRIMARY_PHONE
     WHERE IS_PRIMARY = TRUE AND DELETED_AT IS NULL;
 -- Creo un índice para que un customer no pueda tener más de un teléfono principal
 
--- ==============================
+-- ==============================================================
 -- 4. CATEGORY
--- ==============================
+-- ==============================================================
 CREATE TABLE IF NOT EXISTS CATEGORY (
     CATEGORY_ID     BIGSERIAL PRIMARY KEY,
     PARENT_ID       BIGINT NULL,
@@ -135,9 +135,9 @@ CREATE INDEX IDX_CATEGORY_NAME ON CATEGORY (NAME);
 CREATE INDEX IDX_CATEGORY_PARENT ON CATEGORY (PARENT_ID);
 CREATE INDEX IDX_CATEGORY_LEVEL ON CATEGORY (LEVEL);
 
--- ==============================
+-- ==============================================================
 -- 5. ITEM
--- ==============================
+-- ==============================================================
 CREATE TABLE IF NOT EXISTS ITEM (
     ITEM_ID         BIGSERIAL PRIMARY KEY,
     SELLER_ID       BIGINT NOT NULL,
@@ -164,14 +164,16 @@ CREATE TABLE IF NOT EXISTS ITEM (
     CONSTRAINT CK_ITEM_DATES CHECK (END_DATE IS NULL OR END_DATE > PUBLISHED_AT)
 );
 
+-- Indices
 CREATE INDEX IDX_ITEM_SELLER ON ITEM (SELLER_ID);
 CREATE INDEX IDX_ITEM_CATEGORY ON ITEM (CATEGORY_ID);
 CREATE INDEX IDX_ITEM_STATUS ON ITEM (STATUS);
 CREATE INDEX IDX_ITEM_PUBLISHED ON ITEM (PUBLISHED_AT);
 
--- ==============================
--- 6. ORDER_TABLE (ORDER es palabra reservada, asi que le agrego un diferenciador)
--- ==============================
+-- ==============================================================
+-- 6. ORDER_TABLE
+-- ORDER es palabra reservada, asi que le agrego un diferenciador _TABLE
+-- ==============================================================
 CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     ORDER_ID        BIGSERIAL PRIMARY KEY,
     ORDER_NUMBER    VARCHAR(20) NOT NULL, -- Para que el comprador identifique la orden
@@ -213,6 +215,7 @@ CREATE TABLE IF NOT EXISTS ORDER_TABLE (
         (PAYMENT_METHOD IN ('CREDIT_CARD','DEBIT_CARD','TRANSFER'))
 );
 
+-- Indices
 CREATE INDEX IDX_ORDER_BUYER ON ORDER_TABLE (BUYER_ID);
 CREATE INDEX IDX_ORDER_SELLER ON ORDER_TABLE (SELLER_ID);
 CREATE INDEX IDX_ORDER_ITEM ON ORDER_TABLE (ITEM_ID);
@@ -226,15 +229,39 @@ CREATE INDEX IDX_ORDER_CATEGORY_DATE_SELLER ON ORDER_TABLE
     (EXTRACT(YEAR FROM CREATED_AT), EXTRACT(MONTH FROM CREATED_AT), SELLER_ID)
     INCLUDE (FINAL_PRICE, QUANTITY)
     WHERE STATUS = 'COMPLETED' AND PAYMENT_STATUS = 'PAID';
--- Indice para filtrar ventas por categoría y fecha
+-- Para filtrar ventas por categoría y fecha
 
--- ==============================
+-- ==============================================================
+-- 6. ITEM_DAILY_SNAPSHOT
+-- Tabla para almacenar el histórico de precios y estados por día
+-- ==============================================================
+CREATE TABLE IF NOT EXISTS ITEM_DAILY_SNAPSHOT (
+    SNAPSHOT_ID     BIGSERIAL PRIMARY KEY,
+    ITEM_ID         BIGINT NOT NULL,
+    SNAPSHOT_DATE   DATE NOT NULL,
+    PRICE           DECIMAL(12,2) NOT NULL,
+    STATUS          VARCHAR(20) NOT NULL,
+    CURRENCY        VARCHAR(3) NOT NULL,
+    CREATED_AT      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Restricciones
+    CONSTRAINT FK_SNAPSHOT_ITEM FOREIGN KEY (ITEM_ID) REFERENCES ITEM(ITEM_ID),
+    CONSTRAINT UQ_ITEM_SNAPSHOT_DATE UNIQUE (ITEM_ID, SNAPSHOT_DATE),
+    CONSTRAINT CK_SNAPSHOT_PRICE CHECK (PRICE >= 0),
+    CONSTRAINT CK_SNAPSHOT_STATUS CHECK (STATUS IN ('DRAFT','ACTIVE','INACTIVE','SOLD','DELETED'))
+);
+
+-- Índices para optimizar consultas
+CREATE INDEX IDX_SNAPSHOT_DATE ON ITEM_DAILY_SNAPSHOT (SNAPSHOT_DATE);
+CREATE INDEX IDX_SNAPSHOT_ITEM_DATE ON ITEM_DAILY_SNAPSHOT (ITEM_ID, SNAPSHOT_DATE);
+
+-- ==============================================================
 -- Funciones y triggers
--- ==============================
+-- ==============================================================
 
--- ==========================================
+-- ==============================================================
 -- Función para actualizar UPDATED_AT automáticamente cuando se modifica cualquier campo de un registro
--- ==========================================
+-- ==============================================================
 CREATE OR REPLACE FUNCTION set_updated_at()
     RETURNS TRIGGER AS $$
 BEGIN
@@ -243,10 +270,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- ==========================================
+-- ==============================================================
 -- Función para soft delete: actualizar DELETED_AT y UPDATED_AT
 -- Cuando se elimina un registro también se actualiza el UPDATED_AT
--- ==========================================
+-- ==============================================================
 CREATE OR REPLACE FUNCTION set_deleted_at()
     RETURNS TRIGGER AS $$
 BEGIN
@@ -257,9 +284,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- ==========================================
+-- ==============================================================
 -- Triggers para UPDATED_AT
--- ==========================================
+-- ==============================================================
 -- CUSTOMER
 CREATE TRIGGER trg_customer_updated
     BEFORE UPDATE ON CUSTOMER
@@ -296,9 +323,9 @@ CREATE TRIGGER trg_order_updated
     FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
 
--- ==========================================
+-- ==============================================================
 -- Triggers para DELETED_AT (y UPDATED_AT)
--- ==========================================
+-- ==============================================================
 -- CUSTOMER
 CREATE TRIGGER trg_customer_deleted
     BEFORE UPDATE ON CUSTOMER
