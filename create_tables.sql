@@ -204,11 +204,11 @@ CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     CONSTRAINT CK_ORDER_PRICE CHECK (UNIT_PRICE >= 0),
     CONSTRAINT CK_ORDER_STATUS CHECK
         (STATUS IN
-         ('CREATED','PENDING','PROCESSING','SHIPPED','DELIVERED','RETURNED','CANCELLED','CANCELLED', 'COMPLETED')),
+         ('CREATED','PENDING','PROCESSING','SHIPPED','DELIVERED','RETURNED','CANCELLED','COMPLETED')),
     CONSTRAINT CK_PAYMENT_STATUS CHECK
         (PAYMENT_STATUS IN ('PENDING','PROCESSING','PAID','FAILED','REFUNDED')),
     CONSTRAINT CK_SHIPPING_STATUS CHECK
-        (SHIPPING_STATUS IN ('PENDING','PREPARING','IN_TRANSIT','DELIVERED','RETURNED')),
+        (SHIPPING_STATUS IN ('PENDING','PREPARING','IN_TRANSIT','DELIVERED','CANCELLED','RETURNED')),
     CONSTRAINT CK_PAYMENT_METHOD CHECK
         (PAYMENT_METHOD IN ('CREDIT_CARD','DEBIT_CARD','TRANSFER'))
 );
@@ -219,17 +219,21 @@ CREATE INDEX IDX_ORDER_ITEM ON ORDER_TABLE (ITEM_ID);
 CREATE INDEX IDX_ORDER_STATUS ON ORDER_TABLE (STATUS);
 CREATE INDEX IDX_ORDER_CREATED_YEAR_MONTH ON ORDER_TABLE
     (EXTRACT(YEAR FROM CREATED_AT), EXTRACT(MONTH FROM CREATED_AT));
-    -- Para filtrar las órdenes realizadas por año y mes (usada para calcular ventas por año y mes)
+-- Para filtrar las órdenes realizadas por año y mes (usada para calcular ventas por año y mes)
 CREATE INDEX IDX_ORDER_SELLER_STATUS ON ORDER_TABLE (SELLER_ID, STATUS);
 -- Para filtar por órdenes realizadas por un vendedor en un determinado estado (usada para calcular ventas terminadas)
-
+CREATE INDEX IDX_ORDER_CATEGORY_DATE_SELLER ON ORDER_TABLE
+    (EXTRACT(YEAR FROM CREATED_AT), EXTRACT(MONTH FROM CREATED_AT), SELLER_ID)
+    INCLUDE (FINAL_PRICE, QUANTITY)
+    WHERE STATUS = 'COMPLETED' AND PAYMENT_STATUS = 'PAID';
+-- Indice para filtrar ventas por categoría y fecha
 
 -- ==============================
 -- Funciones y triggers
 -- ==============================
 
 -- ==========================================
--- Función para actualizar UPDATED_AT automáticamente
+-- Función para actualizar UPDATED_AT automáticamente cuando se modifica cualquier campo de un registro
 -- ==========================================
 CREATE OR REPLACE FUNCTION set_updated_at()
     RETURNS TRIGGER AS $$
@@ -241,6 +245,7 @@ $$ LANGUAGE plpgsql;
 
 -- ==========================================
 -- Función para soft delete: actualizar DELETED_AT y UPDATED_AT
+-- Cuando se elimina un registro también se actualiza el UPDATED_AT
 -- ==========================================
 CREATE OR REPLACE FUNCTION set_deleted_at()
     RETURNS TRIGGER AS $$
@@ -292,9 +297,8 @@ CREATE TRIGGER trg_order_updated
 EXECUTE FUNCTION set_updated_at();
 
 -- ==========================================
--- Triggers para DELETED_AT (opcional)
+-- Triggers para DELETED_AT (y UPDATED_AT)
 -- ==========================================
--- Se puede usar el mismo trigger si se quiere actualizar UPDATED_AT al hacer soft delete
 -- CUSTOMER
 CREATE TRIGGER trg_customer_deleted
     BEFORE UPDATE ON CUSTOMER
