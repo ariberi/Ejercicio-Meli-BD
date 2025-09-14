@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS CUSTOMER (
 );
 
 -- Indices
-CREATE INDEX IDX_CUSTOMER_BIRTH_DATE ON CUSTOMER (BIRTH_DATE); -- Para usar en la query de cumpleaños
+CREATE INDEX IDX_CUSTOMER_BIRTH_DATE_MD ON CUSTOMER (EXTRACT(MONTH FROM BIRTH_DATE), EXTRACT(DAY FROM BIRTH_DATE));
+-- Para usar en la query de cumpleaños
 CREATE INDEX IDX_CUSTOMER_NAME ON CUSTOMER (FIRST_NAME, LAST_NAME); -- Para búsquedas por nombre
 
 -- ==============================
@@ -213,6 +214,11 @@ CREATE INDEX IDX_ORDER_BUYER ON ORDER_TABLE (BUYER_ID);
 CREATE INDEX IDX_ORDER_SELLER ON ORDER_TABLE (SELLER_ID);
 CREATE INDEX IDX_ORDER_ITEM ON ORDER_TABLE (ITEM_ID);
 CREATE INDEX IDX_ORDER_STATUS ON ORDER_TABLE (STATUS);
+CREATE INDEX IDX_ORDER_CREATED_YEAR_MONTH ON ORDER_TABLE
+    (EXTRACT(YEAR FROM CREATED_AT), EXTRACT(MONTH FROM CREATED_AT));
+    -- Para filtrar las órdenes realizadas por año y mes (usada para calcular ventas por año y mes)
+CREATE INDEX IDX_ORDER_SELLER_STATUS ON ORDER_TABLE (SELLER_ID, STATUS);
+-- Para filtar por órdenes realizadas por un vendedor en un determinado estado (usada para calcular ventas terminadas)
 
 
 -- ==============================
