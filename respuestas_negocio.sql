@@ -1,4 +1,6 @@
+-- ==============================================================
 -- 1. Usuarios que cumplen años hoy con más de 1500 ventas en enero 2020
+-- ==============================================================
 SELECT
     c.CUSTOMER_ID,
     c.FIRST_NAME,
@@ -23,7 +25,9 @@ GROUP BY c.CUSTOMER_ID, c.FIRST_NAME, c.LAST_NAME, c.EMAIL, c.BIRTH_DATE
 HAVING COUNT(o.ORDER_ID) > 1500
 ORDER BY ventas_enero_2020 DESC;
 
+-- ==============================================================
 -- 2. Top 5 vendedores por mes en categoría Celulares 2020
+-- ==============================================================
 WITH celulares_category AS (
     SELECT CATEGORY_ID
     FROM CATEGORY
@@ -72,3 +76,35 @@ FROM ranked_sellers rs
 WHERE rs.ranking <= 5
   AND c.DELETED_AT IS NULL
 ORDER BY rs.mes, rs.ranking;
+
+-- ==============================================================
+-- 3. Stored procedure para poblar la tabla ITEM_DAILY_SNAPSHOT
+-- ==============================================================
+CREATE OR REPLACE PROCEDURE sp_populate_item_daily_snapshot(p_snapshot_date DATE DEFAULT CURRENT_DATE)
+    LANGUAGE plpgsql AS $$
+BEGIN
+    -- Insertar o actualizar el snapshot de cada ítem
+    INSERT INTO ITEM_DAILY_SNAPSHOT (ITEM_ID, SNAPSHOT_DATE, PRICE, STATUS, CURRENCY)
+    SELECT
+        ITEM_ID,
+        p_snapshot_date AS SNAPSHOT_DATE,
+        PRICE,
+        STATUS,
+        CURRENCY
+    FROM ITEM
+    ON CONFLICT (ITEM_ID, SNAPSHOT_DATE)
+        DO UPDATE SET
+                      PRICE = EXCLUDED.PRICE,
+                      STATUS = EXCLUDED.STATUS,
+                      CURRENCY = EXCLUDED.CURRENCY,
+                      CREATED_AT = CURRENT_TIMESTAMP;
+END;
+$$;
+
+-- Cómo ejecutar:
+-- Llenar el snapshot del día de hoy
+CALL sp_populate_item_daily_snapshot();
+
+-- Llenar un snapshot de una fecha específica
+CALL sp_populate_item_daily_snapshot('2025-09-14');
+CALL sp_populate_item_daily_snapshot('2025-09-15');
