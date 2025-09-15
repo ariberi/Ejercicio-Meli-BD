@@ -145,6 +145,8 @@ CREATE TABLE IF NOT EXISTS CATEGORY (
     -- Restricciones
     CONSTRAINT FK_CATEGORY_PARENT FOREIGN KEY (PARENT_ID)
         REFERENCES CATEGORY(CATEGORY_ID),
+    -- Por tema de jerarquías de categorías, se crea una FK que apunta a la misma tabla,
+    -- para poder obtener las categorías superiores e inferiores
     CONSTRAINT CK_CATEGORY_LEVEL CHECK (LEVEL >= 0),
     CONSTRAINT UQ_CATEGORY_NAME UNIQUE (NAME) -- No puede haber dos categorías con el mismo nombre
 );
