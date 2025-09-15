@@ -22,7 +22,8 @@ El modelo de datos está compuesto por las siguientes tablas:
 
 -   `create_tables.sql`: Contiene las sentencias DDL para definir la estructura completa de la base de datos.
 -   `respuestas_negocio.sql`: Incluye las consultas responden a los requerimientos de negocio planteados.
--   `funciones_triggers.sql`: Incluye funciones y triggers adicionales para facilitar el manejo y validación de datos.
+-   `funciones_triggers.sql`: Incluye algunas funciones y triggers adicionales que podrían usarse 
+                para facilitar el manejo y validación de datos.
 -   `DER.drawio.png`: Es el gráfico de relaciones entre las tablas.
 
 ## Preguntas de Negocio Resueltas
