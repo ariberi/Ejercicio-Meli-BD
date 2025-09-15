@@ -1,5 +1,6 @@
 -- ==============================================================
--- 1. Usuarios que cumplen años hoy con más de 1500 ventas en enero 2020
+-- 1. Listar los usuarios que cumplan años el día de hoy,
+-- cuya cantidad de ventas realizadas en enero 2020 sea superior a 1500.
 -- ==============================================================
 SELECT
     c.CUSTOMER_ID,
@@ -11,13 +12,13 @@ SELECT
 FROM CUSTOMER c
          INNER JOIN ORDER_TABLE o ON c.CUSTOMER_ID = o.SELLER_ID
 WHERE
-  -- Cumple años hoy (usará el índice IDX_CUSTOMER_BIRTH_DATE_MD)
+  -- Cumple años hoy (usa índice IDX_CUSTOMER_BIRTH_DATE_MD)
     EXTRACT(MONTH FROM c.BIRTH_DATE) = EXTRACT(MONTH FROM CURRENT_DATE)
   AND EXTRACT(DAY FROM c.BIRTH_DATE) = EXTRACT(DAY FROM CURRENT_DATE)
-  -- Ventas en enero 2020 (usará el índice IDX_ORDER_CREATED_YEAR_MONTH)
+  -- Ventas en enero 2020 (usa el índice IDX_ORDER_CREATED_YEAR_MONTH)
   AND EXTRACT(YEAR FROM o.CREATED_AT) = 2020
   AND EXTRACT(MONTH FROM o.CREATED_AT) = 1
-  -- Solo órdenes exitosas (usará el índice IDX_ORDER_SELLER_STATUS)
+  -- Solo órdenes completas (usa el índice IDX_ORDER_SELLER_STATUS)
   AND o.STATUS = 'COMPLETED'
   -- Cliente activo
   AND c.DELETED_AT IS NULL
@@ -26,7 +27,9 @@ HAVING COUNT(o.ORDER_ID) > 1500
 ORDER BY ventas_enero_2020 DESC;
 
 -- ==============================================================
--- 2. Top 5 vendedores por mes en categoría Celulares 2020
+-- 2. Por cada mes del 2020, se solicita el top 5 de usuarios que más vendieron($) en la categoría Celulares.
+-- Se requiere el mes y año de análisis, nombre y apellido del vendedor, cantidad de ventas realizadas,
+-- cantidad de productos vendidos y el monto total transaccionado.
 -- ==============================================================
 WITH celulares_category AS (
     SELECT CATEGORY_ID
@@ -78,7 +81,10 @@ WHERE rs.ranking <= 5
 ORDER BY rs.mes, rs.ranking;
 
 -- ==============================================================
--- 3. Stored procedure para poblar la tabla ITEM_DAILY_SNAPSHOT
+-- 3. Se solicita poblar una nueva tabla con el precio y estado de los Ítems a fin del día.
+-- Tener en cuenta que debe ser reprocesable. Vale resaltar que en la tabla Item,
+-- vamos a tener únicamente el último estado informado por la PK definida.
+-- (Se puede resolver a través de StoredProcedure)
 -- ==============================================================
 CREATE OR REPLACE PROCEDURE sp_populate_item_daily_snapshot(p_snapshot_date DATE DEFAULT CURRENT_DATE)
     LANGUAGE plpgsql AS $$
@@ -104,6 +110,8 @@ $$;
 -- Cómo ejecutar:
 -- Llenar el snapshot del día de hoy
 CALL sp_populate_item_daily_snapshot();
+
+-- SELECT * FROM ITEM_DAILY_SNAPSHOT;
 
 -- Llenar un snapshot de una fecha específica
 CALL sp_populate_item_daily_snapshot('2025-09-14');
