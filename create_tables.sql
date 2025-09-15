@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS PHONE (
     CONSTRAINT CK_PHONE_NUMBER CHECK (PHONE_NUMBER ~ '^[0-9]{8,15}$'),
     CONSTRAINT FK_PHONE_CUSTOMER FOREIGN KEY (CUSTOMER_ID)
         REFERENCES CUSTOMER(CUSTOMER_ID) ON DELETE CASCADE
+    -- Si se elimina un registro de la tabla principal customer, también se elimina acá
 );
 
 -- Indices
@@ -132,8 +133,6 @@ CREATE TABLE IF NOT EXISTS CATEGORY (
 
 -- Indices
 CREATE INDEX IDX_CATEGORY_NAME ON CATEGORY (NAME);
-CREATE INDEX IDX_CATEGORY_PARENT ON CATEGORY (PARENT_ID);
-CREATE INDEX IDX_CATEGORY_LEVEL ON CATEGORY (LEVEL);
 
 -- ==============================================================
 -- 5. ITEM
@@ -160,7 +159,7 @@ CREATE TABLE IF NOT EXISTS ITEM (
     CONSTRAINT FK_ITEM_CATEGORY FOREIGN KEY (CATEGORY_ID) REFERENCES CATEGORY(CATEGORY_ID),
     CONSTRAINT CK_ITEM_PRICE CHECK (PRICE >= 0),
     CONSTRAINT CK_ITEM_STOCK CHECK (STOCK_QUANTITY >= 0),
-    CONSTRAINT CK_ITEM_STATUS CHECK (STATUS IN ('DRAFT','ACTIVE','INACTIVE','SOLD','DELETED')),
+    CONSTRAINT CK_ITEM_STATUS CHECK (STATUS IN ('DRAFT','ACTIVE','INACTIVE','SOLD_OUT','DELETED')),
     CONSTRAINT CK_ITEM_DATES CHECK (END_DATE IS NULL OR END_DATE > PUBLISHED_AT)
 );
 
@@ -168,7 +167,6 @@ CREATE TABLE IF NOT EXISTS ITEM (
 CREATE INDEX IDX_ITEM_SELLER ON ITEM (SELLER_ID);
 CREATE INDEX IDX_ITEM_CATEGORY ON ITEM (CATEGORY_ID);
 CREATE INDEX IDX_ITEM_STATUS ON ITEM (STATUS);
-CREATE INDEX IDX_ITEM_PUBLISHED ON ITEM (PUBLISHED_AT);
 
 -- ==============================================================
 -- 6. ORDER_TABLE
@@ -179,6 +177,8 @@ CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     ORDER_NUMBER    VARCHAR(20) NOT NULL, -- Para que el comprador identifique la orden
     BUYER_ID        BIGINT NOT NULL,
     SELLER_ID       BIGINT NOT NULL,
+    -- SELLER_ID: si bien se puede sacar de ITEM_ID,
+    -- desnormalizamos para mejorar la performance y no tener que hacer join extra
     ITEM_ID         BIGINT NOT NULL,
     QUANTITY        INTEGER NOT NULL,
     UNIT_PRICE      DECIMAL(12,2) NOT NULL,
@@ -186,7 +186,8 @@ CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     DISCOUNT        DECIMAL(12,2) DEFAULT 0,
     TAXES           DECIMAL(12,2) DEFAULT 0,
     SHIPPING_COST   DECIMAL(12,2) DEFAULT 0,
-    FINAL_PRICE     DECIMAL(14,2) GENERATED ALWAYS AS ((QUANTITY * UNIT_PRICE) + SHIPPING_COST + TAXES - DISCOUNT) STORED,
+    FINAL_PRICE     DECIMAL(14,2) GENERATED ALWAYS AS
+        ((QUANTITY * UNIT_PRICE) + SHIPPING_COST + TAXES - DISCOUNT) STORED,
     CURRENCY        VARCHAR(3) NOT NULL,
     STATUS          VARCHAR(20) DEFAULT 'CREATED',
     PAYMENT_STATUS  VARCHAR(20) DEFAULT 'PENDING',
@@ -251,105 +252,6 @@ CREATE TABLE IF NOT EXISTS ITEM_DAILY_SNAPSHOT (
     CONSTRAINT CK_SNAPSHOT_STATUS CHECK (STATUS IN ('DRAFT','ACTIVE','INACTIVE','SOLD','DELETED'))
 );
 
--- Índices para optimizar consultas
+-- Indices
 CREATE INDEX IDX_SNAPSHOT_DATE ON ITEM_DAILY_SNAPSHOT (SNAPSHOT_DATE);
 CREATE INDEX IDX_SNAPSHOT_ITEM_DATE ON ITEM_DAILY_SNAPSHOT (ITEM_ID, SNAPSHOT_DATE);
-
--- ==============================================================
--- Funciones y triggers
--- ==============================================================
-
--- ==============================================================
--- Función para actualizar UPDATED_AT automáticamente cuando se modifica cualquier campo de un registro
--- ==============================================================
-CREATE OR REPLACE FUNCTION set_updated_at()
-    RETURNS TRIGGER AS $$
-BEGIN
-    NEW.UPDATED_AT = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- ==============================================================
--- Función para soft delete: actualizar DELETED_AT y UPDATED_AT
--- Cuando se elimina un registro también se actualiza el UPDATED_AT
--- ==============================================================
-CREATE OR REPLACE FUNCTION set_deleted_at()
-    RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.DELETED_AT IS DISTINCT FROM OLD.DELETED_AT THEN
-        NEW.UPDATED_AT = CURRENT_TIMESTAMP;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- ==============================================================
--- Triggers para UPDATED_AT
--- ==============================================================
--- CUSTOMER
-CREATE TRIGGER trg_customer_updated
-    BEFORE UPDATE ON CUSTOMER
-    FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
-
--- ADDRESS
-CREATE TRIGGER trg_address_updated
-    BEFORE UPDATE ON ADDRESS
-    FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
-
--- PHONE
-CREATE TRIGGER trg_phone_updated
-    BEFORE UPDATE ON PHONE
-    FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
-
--- CATEGORY
-CREATE TRIGGER trg_category_updated
-    BEFORE UPDATE ON CATEGORY
-    FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
-
--- ITEM
-CREATE TRIGGER trg_item_updated
-    BEFORE UPDATE ON ITEM
-    FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
-
--- ORDER_TABLE
-CREATE TRIGGER trg_order_updated
-    BEFORE UPDATE ON ORDER_TABLE
-    FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
-
--- ==============================================================
--- Triggers para DELETED_AT (y UPDATED_AT)
--- ==============================================================
--- CUSTOMER
-CREATE TRIGGER trg_customer_deleted
-    BEFORE UPDATE ON CUSTOMER
-    FOR EACH ROW
-    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
-EXECUTE FUNCTION set_deleted_at();
-
--- ADDRESS
-CREATE TRIGGER trg_address_deleted
-    BEFORE UPDATE ON ADDRESS
-    FOR EACH ROW
-    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
-EXECUTE FUNCTION set_deleted_at();
-
--- PHONE
-CREATE TRIGGER trg_phone_deleted
-    BEFORE UPDATE ON PHONE
-    FOR EACH ROW
-    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
-EXECUTE FUNCTION set_deleted_at();
-
--- ITEM
-CREATE TRIGGER trg_item_deleted
-    BEFORE UPDATE ON ITEM
-    FOR EACH ROW
-    WHEN (OLD.DELETED_AT IS DISTINCT FROM NEW.DELETED_AT)
-EXECUTE FUNCTION set_deleted_at();
