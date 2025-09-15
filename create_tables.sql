@@ -4,11 +4,24 @@
 -- ==============================================================
 
 -- ==============================================================
+-- DISCLAIMER:
+
+-- Si bien hay muchas de las restricciones que podrían estar dentro de un backend,
+-- por este ejercicio las dejo en la base de datos para asegurar la integridad y entendimiento.
+
+-- Además, tener en cuenta que se utilizó el motor de base de datos PostgreSQL para realizar pruebas,
+-- por lo que las sintaxis puede variar en otros motores.
+-- ==============================================================
+
+-- ==============================================================
 -- TABLAS
 -- ==============================================================
 
 -- ==============================================================
 -- 1. CUSTOMER
+-- Se reflejan todos los usuarios, ya sean venderos o compradores,
+-- dado que un usuario puede comprar y vender items.
+-- La diferencia entre el rol de cada usuario se ve dentro de las tablas de ITEM y ORDER_TABLE.
 -- ==============================================================
 CREATE TABLE IF NOT EXISTS CUSTOMER (
     CUSTOMER_ID     BIGSERIAL PRIMARY KEY,
@@ -34,12 +47,15 @@ CREATE TABLE IF NOT EXISTS CUSTOMER (
 );
 
 -- Indices
-CREATE INDEX IDX_CUSTOMER_BIRTH_DATE_MD ON CUSTOMER (EXTRACT(MONTH FROM BIRTH_DATE), EXTRACT(DAY FROM BIRTH_DATE));
+CREATE INDEX IDX_CUSTOMER_BIRTH_DATE_MD ON CUSTOMER
+    (EXTRACT(MONTH FROM BIRTH_DATE), EXTRACT(DAY FROM BIRTH_DATE));
 -- Para usar en la query de cumpleaños
 CREATE INDEX IDX_CUSTOMER_NAME ON CUSTOMER (FIRST_NAME, LAST_NAME); -- Para búsquedas por nombre
 
 -- ==============================================================
 -- 2. ADDRESS
+-- Un usuario puede tener varias direcciones, por eso se normaliza la tabla,
+-- y se asocia al customer mediante la Foreign Key
 -- ==============================================================
 CREATE TABLE IF NOT EXISTS ADDRESS (
     ADDRESS_ID      BIGSERIAL PRIMARY KEY,
@@ -72,6 +88,8 @@ CREATE UNIQUE INDEX UQ_CUSTOMER_PRIMARY_ADDRESS
 
 -- ==============================================================
 -- 3. PHONE
+-- Un usuario puede tener varios números de teléfono, por eso se normaliza la tabla,
+-- y se asocia al customer mediante la Foreign Key
 -- ==============================================================
 CREATE TABLE IF NOT EXISTS PHONE (
     PHONE_ID        BIGSERIAL PRIMARY KEY,
@@ -171,6 +189,8 @@ CREATE INDEX IDX_ITEM_STATUS ON ITEM (STATUS);
 -- ==============================================================
 -- 6. ORDER_TABLE
 -- ORDER es palabra reservada, asi que le agrego un diferenciador _TABLE
+-- Al no haber carrito de compras, se utiliza la tabla para almacenar las órdenes realizadas,
+-- es decir, cada compra genera una orden de un solo ítem con la cantidad especificada.
 -- ==============================================================
 CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     ORDER_ID        BIGSERIAL PRIMARY KEY,
@@ -182,6 +202,8 @@ CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     ITEM_ID         BIGINT NOT NULL,
     QUANTITY        INTEGER NOT NULL,
     UNIT_PRICE      DECIMAL(12,2) NOT NULL,
+    -- UNIT_PRICE: se agrega dado que el precio del item puede cambiar en el tiempo,
+    -- por lo que se almacena en la orden el precio del momento en que se compró.
     TOTAL_AMOUNT    DECIMAL(14,2) GENERATED ALWAYS AS (QUANTITY * UNIT_PRICE) STORED,
     -- TOTAL_AMOUNT: Automáticamente calcula el precio total de la orden, antes de taxes, shipping y descuentos
     DISCOUNT        DECIMAL(12,2) DEFAULT 0,
@@ -189,7 +211,7 @@ CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     SHIPPING_COST   DECIMAL(12,2) DEFAULT 0,
     FINAL_PRICE     DECIMAL(14,2) GENERATED ALWAYS AS
         ((QUANTITY * UNIT_PRICE) + SHIPPING_COST + TAXES - DISCOUNT) STORED,
-    -- FINAL_PRICE: Precio final de la orden, incluyendo descuentos, taxes y shipping
+    -- FINAL_PRICE:  Automáticamente calcula el precio final de la orden, incluyendo descuentos, taxes y shipping
     CURRENCY        VARCHAR(3) NOT NULL,
     STATUS          VARCHAR(20) DEFAULT 'CREATED',
     PAYMENT_STATUS  VARCHAR(20) DEFAULT 'PENDING',
@@ -236,7 +258,7 @@ CREATE INDEX IDX_ORDER_CATEGORY_DATE_SELLER ON ORDER_TABLE
 
 -- ==============================================================
 -- 6. ITEM_DAILY_SNAPSHOT
--- Tabla para almacenar el histórico de precios y estados por día
+-- Tabla para almacenar el histórico de precios y estados a fin de día
 -- ==============================================================
 CREATE TABLE IF NOT EXISTS ITEM_DAILY_SNAPSHOT (
     SNAPSHOT_ID     BIGSERIAL PRIMARY KEY,

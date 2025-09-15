@@ -102,7 +102,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ==========================================
--- Trigger para ejecutar la validación antes de INSERT
+-- Trigger para ejecutar la validación de compra/venta antes de INSERT
 -- ==========================================
 CREATE TRIGGER trg_validate_purchase
     BEFORE INSERT ON ORDER_TABLE
