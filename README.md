@@ -1,5 +1,7 @@
 # Ejercicio Base de Datos 2025 - MELI
 
+**Version:** 1.0.0
+
 Este proyecto implementa un modelo de base de datos para un marketplace similar a Mercado Libre (MELI).
 
 Incluye el esquema de la base de datos y consultas SQL para resolver preguntas de negocio específicas.
@@ -27,7 +29,7 @@ El modelo de datos está compuesto por las siguientes tablas:
 -   `funciones_triggers.sql`: Incluye algunas funciones y triggers adicionales que podrían usarse 
                 para facilitar el manejo y validación de datos.
 -   `DER.png`: Es el gráfico de relaciones entre las tablas.
-
+  
 ## Preguntas de Negocio Resueltas
 
 En el archivo `respuestas_negocio.sql` se pueden encontrar las soluciones a los siguientes requerimientos:
@@ -41,3 +43,11 @@ En el archivo `respuestas_negocio.sql` se pueden encontrar las soluciones a los 
 3.  **Se solicita poblar una nueva tabla con el precio y estado de los Ítems a fin del día. 
      Tener en cuenta que debe ser reprocesable. Vale resaltar que en la tabla Item, 
       vamos a tener únicamente el último estado informado por la PK definida. (Se puede resolver a través de StoredProcedure)**
+
+## Diagrama de Entidad-Relación
+
+![Diagrama de Entidad-Relación](DER.png)
+
+## Autor
+
+- **Ariel Berinstein**
