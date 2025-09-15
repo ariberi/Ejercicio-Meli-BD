@@ -26,7 +26,7 @@ El modelo de datos está compuesto por las siguientes tablas:
 -   `respuestas_negocio.sql`: Incluye las consultas que responden a los requerimientos de negocio planteados.
 -   `funciones_triggers.sql`: Incluye algunas funciones y triggers adicionales que podrían usarse 
                 para facilitar el manejo y validación de datos.
--   `DER.drawio.png`: Es el gráfico de relaciones entre las tablas.
+-   `DER.png`: Es el gráfico de relaciones entre las tablas.
 
 ## Preguntas de Negocio Resueltas
 
