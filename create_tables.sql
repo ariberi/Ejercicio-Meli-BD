@@ -183,11 +183,13 @@ CREATE TABLE IF NOT EXISTS ORDER_TABLE (
     QUANTITY        INTEGER NOT NULL,
     UNIT_PRICE      DECIMAL(12,2) NOT NULL,
     TOTAL_AMOUNT    DECIMAL(14,2) GENERATED ALWAYS AS (QUANTITY * UNIT_PRICE) STORED,
+    -- TOTAL_AMOUNT: Automáticamente calcula el precio total de la orden, antes de taxes, shipping y descuentos
     DISCOUNT        DECIMAL(12,2) DEFAULT 0,
     TAXES           DECIMAL(12,2) DEFAULT 0,
     SHIPPING_COST   DECIMAL(12,2) DEFAULT 0,
     FINAL_PRICE     DECIMAL(14,2) GENERATED ALWAYS AS
         ((QUANTITY * UNIT_PRICE) + SHIPPING_COST + TAXES - DISCOUNT) STORED,
+    -- FINAL_PRICE: Precio final de la orden, incluyendo descuentos, taxes y shipping
     CURRENCY        VARCHAR(3) NOT NULL,
     STATUS          VARCHAR(20) DEFAULT 'CREATED',
     PAYMENT_STATUS  VARCHAR(20) DEFAULT 'PENDING',
